@@ -3,7 +3,7 @@ name: setup-macos-release
 description: Set up or migrate a macOS app's GitHub Actions release workflow to the shared sichengchen/macos-release signing and notarization repo. Use for new app integrations, release artifact handoffs, and Homebrew cask publishing from the shared workflow.
 ---
 
-Read the [release repo README](../../../README.md) for current environment settings and the Eau release procedure. Use the local checkout at `~/src/macos-release` when available.
+Read the [release repo README](../../../README.md) for shared environment settings. The [Eau integration guide](../../../apps/eau/release.md) is a worked example. Use the local checkout at `~/src/macos-release` when available.
 
 1. Inspect the app's existing release workflow, versioning, signing entitlements, architecture, package format, and release asset URLs. Keep app-specific compilation and tests in the app repo. Preserve the app's release version, tag scheme, and update/install behavior.
 2. Have a trusted build workflow on `main` upload a run-attempt-scoped artifact named `macos-release-app-<run_attempt>` with `app.zip` (created by `ditto -c -k --norsrc --keepParent`) and `release.json` with the exact built commit as `sha` and release version as `version`. Use ad hoc signing for checks if the app requires it. For an installer script, include a copy for comparison with the reviewed release-repo copy. The source repo needs no Apple credentials.

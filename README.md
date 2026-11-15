@@ -19,15 +19,14 @@ Create the `apple-release` Actions environment here. Restrict deployments to the
 
 Install the GitHub App only on the source repos it needs to release and, for public Homebrew distribution, `sichengchen/homebrew-tap`. Give it Actions read and Contents write. The workflow issues an Actions/Contents read token for artifact retrieval and a separate Contents write token for publishing. Each token is scoped to the target repository.
 
-## Cut an Eau release
+## Cut a release
 
-1. On Eau's `main`, run **Prepare macOS release**. Choose a version bump, or **current** to retry a version committed by an earlier preparation. Wait for the successful artifact upload and copy the run ID.
-2. In this repo, run [**Sign and notarize macOS release**](https://github.com/sichengchen/macos-release/actions/workflows/release-macos.yml) from `main` with that run ID. Leave **publish** off for an Apple signing and notarization check. An accepted check retains no public artifact.
-3. Run with **publish** enabled to create the tag at the build commit and publish the stapled installer in Eau Releases. An existing tag must resolve to the same commit. The workflow never replaces an existing release asset.
-4. The workflow updates the public tap only when the source repo is public. Eau currently publishes to its private GitHub Releases. If the tap job fails for a public release, rerun that failed job.
+1. Run the preparation workflow on the app's release branch. Wait for the build and tests to pass, then copy its run ID.
+2. From this repository's [Actions tab](https://github.com/sichengchen/macos-release/actions), run the signing workflow for that app on `main`. Leave **publish** off to check signing and notarization.
+3. Enable **publish** to create the release tag at the build commit and publish the stapled package to the source repository. Public, downloadable packages can also be published to the Homebrew tap.
 
-The signing run checks the source repository, workflow path, dispatched branch, completion status, and artifact commit ancestry. It treats the app archive as data and uses the reviewed installer script in this repo. The public run displays release progress and its inputs. It keeps app files, raw logs, and notarization responses on the runner. Store or share private diagnostics only through a private channel.
+The signer verifies the build's repository, workflow, branch, result, and commit before opening its artifact. It uses reviewed packaging inputs from this repo and keeps private files and diagnostics on the runner.
 
-## Add another app
+## Add an app
 
-Use the [setup-macos-release skill](.agents/skills/setup-macos-release/SKILL.md) for the build artifact contract, repo checks, and package-specific integration. Eau is the first integration. Rajio's universal DMG will need its own signing and packaging profile.
+Read the [setup-macos-release skill](.agents/skills/setup-macos-release/SKILL.md) for the artifact contract, workflow verification, and signing and packaging requirements. App-specific instructions and packaging inputs live under [`apps/`](apps/).
