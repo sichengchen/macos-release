@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+# An offline volume will register its input sources when it boots.
+[ "${3:-}" = / ] || exit 0
+
+app='/Library/Input Methods/Eau.app'
+eau="$app/Contents/MacOS/Eau"
+login_uid=$(/usr/bin/stat -f %u /dev/console)
+
+if [ "$login_uid" -gt 0 ]; then
+  # Stop the previous host and engine so macOS can launch the installed versions.
+  /usr/bin/pkill -TERM -u "$login_uid" -f \
+    '^/Library/Input Methods/Eau[.]app/Contents/(MacOS/Eau|XPCServices/EauEngineService[.]xpc/Contents/MacOS/EauEngineService)$' ||
+    [ "$?" -eq 1 ]
+fi
+
+# Run as root so macOS refreshes the system input-source cache. Sandboxed
+# apps such as System Settings use it, even if a user process can see Eau.
+"$eau" --register-input-source
+
+[ "$login_uid" -gt 0 ] || exit 0
+
+# Preferences belong to the logged-in user and their GUI bootstrap session.
+# Tahoe may present an activation prompt. Leave the current keyboard selected.
+as_login_user() {
+  /bin/launchctl asuser "$login_uid" /usr/bin/sudo -n -u "#$login_uid" "$@"
+}
+if ! as_login_user "$eau" --enable-input-source; then
+  echo 'Complete Eau setup in System Settings > Keyboard > Text Input > Edit.'
+fi
