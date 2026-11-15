@@ -22,11 +22,11 @@ Install the GitHub App only on the source repos it needs to release and, for pub
 ## Cut a release
 
 1. Run the preparation workflow on the app's release branch. Wait for the build and tests to pass, then copy its run ID.
-2. From this repository's [Actions tab](https://github.com/sichengchen/macos-release/actions), run the signing workflow for that app on `main`. Leave **publish** off to check signing and notarization.
+2. From this repository's [Actions tab](https://github.com/sichengchen/macos-release/actions), run **Sign and notarize macOS release** on `main`. Enter the app profile ID and the build run ID. Leave **publish** off to check signing and notarization.
 3. Enable **publish** to create the release tag at the build commit and publish the stapled package to the source repository. Public, downloadable packages can also be published to the Homebrew tap.
 
 The signer verifies the build's repository, workflow, branch, result, and commit before opening its artifact. It uses reviewed packaging inputs from this repo and keeps private files and diagnostics on the runner.
 
 ## Add an app
 
-Read the [setup-macos-release skill](.agents/skills/setup-macos-release/SKILL.md) for the artifact contract, workflow verification, and signing and packaging requirements. App-specific instructions and packaging inputs live under [`apps/`](apps/).
+Read the [setup-macos-release skill](.agents/skills/setup-macos-release/SKILL.md) for the artifact contract, workflow verification, and signing and packaging requirements. Register each app in [`apps/<app-id>/profile.json`](apps/). The profile names the source repository, trusted build workflow, release branch, and asset filename. Its sibling `sign.sh` performs the app-specific signing and packaging.

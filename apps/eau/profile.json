@@ -1,0 +1,7 @@
+{
+  "repository": "sichengchen/eau",
+  "name": "Eau",
+  "build_workflow": ".github/workflows/cut-release-macos.yml",
+  "build_branch": "main",
+  "asset": "Eau-{version}-arm64.pkg"
+}

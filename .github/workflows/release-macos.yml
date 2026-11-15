@@ -3,12 +3,16 @@ name: Sign and notarize macOS release
 on:
   workflow_dispatch:
     inputs:
+      app:
+        description: App profile ID from the apps directory
+        required: true
+        type: string
       run_id:
-        description: Successful Eau preparation run ID
+        description: Successful preparation run ID
         required: true
         type: string
       publish:
-        description: Publish the notarized package to Eau Releases
+        description: Publish the notarized package to the app repository
         default: false
         type: boolean
 
@@ -16,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: macos-release-eau
+  group: macos-release-${{ inputs.app }}
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +32,7 @@ jobs:
     outputs:
       public_version: ${{ steps.publish.outputs.public_version }}
     env:
-      SOURCE_REPO: sichengchen/eau
+      APP_ID: ${{ inputs.app }}
       SOURCE_RUN_ID: ${{ inputs.run_id }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -38,14 +42,18 @@ jobs:
       - name: Set the private working path
         run: printf 'RELEASE_WORK=%s/macos-release\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
-      - name: Get read access to the Eau build
+      - name: Resolve app profile
+        id: app
+        run: bash scripts/resolve-app.sh
+
+      - name: Get read access to the build
         id: read
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
         with:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: sichengchen
-          repositories: eau
+          owner: ${{ steps.app.outputs.owner }}
+          repositories: ${{ steps.app.outputs.repository }}
           permission-actions: read
           permission-contents: read
 
@@ -55,8 +63,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -m 700 "$RELEASE_WORK"
-          if ! bash scripts/fetch-eau.sh > "$RELEASE_WORK/download.log" 2>&1; then
-            echo "::error::Could not verify the Eau build. Check that the run succeeded on main and its release artifact is still available."
+          if ! bash scripts/fetch-build.sh > "$RELEASE_WORK/download.log" 2>&1; then
+            echo "::error::Could not verify the build. Check that the run succeeded on the configured branch and its release artifact is still available."
             exit 1
           fi
 
@@ -68,28 +76,28 @@ jobs:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-        run: bash scripts/sign-eau.sh
+        run: bash scripts/sign-release.sh
 
-      - name: Get write access to Eau Releases
+      - name: Get write access to the app repository
         if: inputs.publish
         id: write
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
         with:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: sichengchen
-          repositories: eau
+          owner: ${{ steps.app.outputs.owner }}
+          repositories: ${{ steps.app.outputs.repository }}
           permission-contents: write
 
-      - name: Publish to Eau Releases
+      - name: Publish to the app repository
         if: inputs.publish
         id: publish
         env:
           GH_TOKEN: ${{ steps.write.outputs.token }}
         run: |
           set -euo pipefail
-          if ! bash scripts/publish-eau.sh > "$RELEASE_WORK/publish.log" 2>&1; then
-            echo "::error::Could not publish to Eau. Check the app's existing tags, releases, and write permissions."
+          if ! bash scripts/publish-release.sh > "$RELEASE_WORK/publish.log" 2>&1; then
+            echo "::error::Could not publish the release. Check the app's existing tags, releases, and write permissions."
             exit 1
           fi
           echo "Published the notarized installer to the source repository."
@@ -123,29 +131,9 @@ jobs:
           path: tap
           token: ${{ steps.tap.outputs.token }}
 
-      - name: Update the Eau cask
+      - name: Update the app cask
         env:
+          APP_ID: ${{ inputs.app }}
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.release.outputs.public_version }}
-        run: |
-          set -euo pipefail
-          [[ "$(gh api repos/sichengchen/eau --jq .visibility)" == public ]]
-          latest=$(gh api repos/sichengchen/eau/releases/latest --jq .tag_name)
-          if [[ "$latest" != "v$VERSION" ]]; then
-            echo "A newer release is current. Keeping the tap on that release."
-            exit 0
-          fi
-          asset="Eau-$VERSION-arm64.pkg"
-          gh release download "v$VERSION" --repo sichengchen/eau \
-            --pattern "$asset" --dir "$RUNNER_TEMP"
-          sha="$(sha256sum "$RUNNER_TEMP/$asset" | awk '{print $1}')"
-          python3 apps/eau/render-cask.py "$VERSION" "$sha" tap/Casks/eau.rb
-          ruby -c tap/Casks/eau.rb
-          git -C tap config user.name 'github-actions[bot]'
-          git -C tap config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git -C tap add Casks/eau.rb
-          if ! git -C tap diff --cached --quiet; then
-            git -C tap commit -m "chore(cask): update eau to v$VERSION" \
-              -m 'Co-Authored-By: Sicheng Chen (bot) <gh-bot@scchan.com>'
-            git -C tap push origin HEAD:main
-          fi
+        run: bash scripts/update-cask.sh

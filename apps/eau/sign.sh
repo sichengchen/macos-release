@@ -3,21 +3,17 @@ set -euo pipefail
 umask 077
 
 : "${RELEASE_WORK:?}"
-repo_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
+app_dir=$(cd -- "$(dirname -- "$0")" && pwd)
 # shellcheck source=scripts/apple-signing.sh
-source "$repo_dir/scripts/apple-signing.sh"
+source "$app_dir/../../scripts/apple-signing.sh"
 
-# This job runs in a public repository. Keep private app paths and tool output
-# on the ephemeral runner instead of echoing them or uploading them.
-exec 3>&1
-exec > "$RELEASE_WORK/signing.log" 2>&1
-trap 'echo "::error::Eau signing failed. Check the reported stage and Apple release configuration." >&3' ERR
+version="${1:?Expected version}"
+pkg="${2:?Expected output package path}"
 
 echo "Validating app bundle." >&3
-cmp "$repo_dir/apps/eau/postinstall" "$RELEASE_WORK/input/postinstall"
+cmp "$app_dir/postinstall" "$RELEASE_WORK/input/postinstall"
 zip="$RELEASE_WORK/input/app.zip"
 app="$RELEASE_WORK/Eau.app"
-version=$(jq -er .version "$RELEASE_WORK/input/release.json")
 python3 - "$zip" "$app" <<'PY'
 import stat
 import sys
@@ -67,11 +63,10 @@ notarize "$archive" "$app"
 spctl --assess --type execute "$app"
 
 echo "Building and notarizing the installer." >&3
-pkg="$RELEASE_WORK/Eau-$version-arm64.pkg"
 staging="$RELEASE_WORK/pkg"
 mkdir -p "$staging/root" "$staging/scripts"
 ditto "$app" "$staging/root/Eau.app"
-install -m 755 "$repo_dir/apps/eau/postinstall" "$staging/scripts/postinstall"
+install -m 755 "$app_dir/postinstall" "$staging/scripts/postinstall"
 components="$staging/components.plist"
 pkgbuild --analyze --root "$staging/root" "$components"
 /usr/libexec/PlistBuddy -c 'Set :0:BundleIsRelocatable false' "$components"
