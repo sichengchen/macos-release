@@ -1,0 +1,7 @@
+{
+  "repository": "sichengchen/rajio",
+  "name": "Rajio",
+  "build_workflow": ".github/workflows/cut-release-desktop.yml",
+  "build_branch": "main",
+  "asset": "Rajio-{version}-universal.dmg"
+}
