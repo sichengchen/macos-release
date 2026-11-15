@@ -15,7 +15,7 @@ def render(version: str, sha256: str) -> str:
   version "{version}"
   sha256 "{sha256}"
 
-  url "https://github.com/sichengchen/eau/releases/download/v#{{version}}/Eau-#{{version}}-arm64.pkg"
+  url "https://github.com/sichengchen/macos-release/releases/download/eau-v#{{version}}/Eau-#{{version}}-arm64.pkg"
   name "Eau"
   desc "Chinese and Japanese input method with mixed candidates"
   homepage "https://github.com/sichengchen/eau"

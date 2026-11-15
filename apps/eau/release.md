@@ -2,9 +2,9 @@
 
 Complete the [shared signing setup](../../README.md#configure-once) first.
 
-1. On Eau's `main`, run **Prepare macOS release**. Choose a version bump, or **current** to retry a version committed by an earlier preparation. Wait for the successful artifact upload and copy the run ID.
-2. In this repo, run [**Sign and notarize macOS release**](https://github.com/sichengchen/macos-release/actions/workflows/release-macos.yml) from `main` with `app` set to `eau` and `run_id` set to that run ID. Leave **publish** off for an Apple signing and notarization check. An accepted check retains no public artifact.
-3. Run with **publish** enabled to create the tag at the build commit and publish the stapled installer in Eau Releases. An existing tag must resolve to the same commit. The workflow never replaces an existing release asset.
-4. The workflow updates the public tap only when the source repo is public. Eau currently publishes to its private GitHub Releases. If the tap job fails for a public release, rerun that failed job.
+1. Run [**Sign and notarize macOS release**](https://github.com/sichengchen/macos-release/actions/workflows/release-macos.yml) on `main` with `app=eau`. Leave `run_id` blank and choose a bump to build automatically, or supply a successful **Prepare macOS release** run ID to reuse that artifact.
+2. Leave **Publish** off for the first signing test. For a release, turn on **Publish**. The workflow creates the source version tag in the private repo and uploads the stapled installer to [public Releases](https://github.com/sichengchen/macos-release/releases) under `eau-v<version>`.
+3. The cask points at the public installer. If the tap job fails, rerun the failed job after checking the GitHub App's tap permissions.
+
 
 The signer requires the reviewed [installer script](postinstall) to match the copy supplied with the build artifact. Update both copies when installer behavior changes.

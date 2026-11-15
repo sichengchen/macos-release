@@ -17,13 +17,13 @@ Create the `macOS Release` Actions environment here. Restrict deployments to the
 | `RELEASE_APP_CLIENT_ID` | Variable | GitHub App client ID |
 | `RELEASE_APP_PRIVATE_KEY` | Secret | GitHub App private key PEM |
 
-Install the GitHub App only on the source repos it needs to release and, for public Homebrew distribution, `sichengchen/homebrew-tap`. Give it Actions read and Contents write. The workflow issues an Actions/Contents read token for artifact retrieval and a separate Contents write token for publishing. Each token is scoped to the target repository.
+Install the GitHub App only on the source repos it needs to release and, for public Homebrew distribution, `sichengchen/homebrew-tap`. Give it Actions read and write to start app builds, and Contents read and write to tag their commits. Actions read is sufficient when supplying a completed build run ID. The workflow issues separate tokens for build dispatch, artifact retrieval, and tagging. Each token is scoped to the target repository.
 
 ## Cut a release
 
-1. Run the preparation workflow on the app's release branch. Wait for the build and tests to pass, then copy its run ID.
-2. From this repository's [Actions tab](https://github.com/sichengchen/macos-release/actions), run **Sign and notarize macOS release** on `main`. Enter the app profile ID and the build run ID. Leave **publish** off to check signing and notarization.
-3. Enable **publish** to create the release tag at the build commit and publish the stapled package to the source repository. Public, downloadable packages can also be published to the Homebrew tap.
+1. From this repository's [Actions tab](https://github.com/sichengchen/macos-release/actions), run **Sign and notarize macOS release** on `main`. Enter the app profile ID and select a version bump.
+2. Leave the run ID blank to start the app's build and wait for it automatically. Supply a successful run ID to reuse that build. A new build can commit the version bump to the source branch.
+3. Leave **Publish** off to check signing and notarization. Turn it on to tag the build commit in the source repository and upload the installer as a public Release asset in this repository under `<app-id>-v<version>`. For profiles with a cask renderer, the workflow updates Homebrew from that public asset.
 
 The signer verifies the build's repository, workflow, branch, result, and commit before opening its artifact. It uses reviewed packaging inputs from this repo and keeps private files and diagnostics on the runner.
 

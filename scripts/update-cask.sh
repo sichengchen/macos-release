@@ -4,17 +4,21 @@ set -euo pipefail
 # shellcheck source=scripts/app-profile.sh
 source "$(dirname -- "$0")/app-profile.sh"
 load_app_profile
-: "${VERSION:?}" "${RUNNER_TEMP:?}"
+: "${VERSION:?}" "${RUNNER_TEMP:?}" "${GITHUB_REPOSITORY:?}"
 asset=$(release_asset "$VERSION")
-[[ "$(gh api "repos/$SOURCE_REPO" --jq .visibility)" == public ]]
-latest=$(gh api "repos/$SOURCE_REPO/releases/latest" --jq .tag_name)
-if [[ "$latest" != "v$VERSION" ]]; then
-  echo 'A newer release is current. Keeping the tap on that release.'
-  exit 0
-fi
-gh release download "v$VERSION" --repo "$SOURCE_REPO" --pattern "$asset" --dir "$RUNNER_TEMP"
-sha=$(sha256sum "$RUNNER_TEMP/$asset" | awk '{print $1}')
 cask="Casks/$APP_ID.rb"
+if [[ -f "tap/$cask" ]]; then
+  current=$(awk -F '"' '/^  version "/ {print $2; exit}' "tap/$cask")
+  release_asset "$current" > /dev/null
+  highest=$(printf '%s\n' "$current" "$VERSION" | sort -V | tail -1)
+  if [[ "$highest" != "$VERSION" ]]; then
+    echo 'The tap already has a newer version.'
+    exit 0
+  fi
+fi
+gh release download "$APP_ID-v$VERSION" --repo "$GITHUB_REPOSITORY" \
+  --pattern "$asset" --dir "$RUNNER_TEMP"
+sha=$(sha256sum "$RUNNER_TEMP/$asset" | awk '{print $1}')
 python3 "$APP_DIR/render-cask.py" "$VERSION" "$sha" "tap/$cask"
 ruby -c "tap/$cask"
 git -C tap config user.name 'github-actions[bot]'

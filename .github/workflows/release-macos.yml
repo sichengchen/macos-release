@@ -8,11 +8,16 @@ on:
         required: true
         type: string
       run_id:
-        description: Successful preparation run ID
-        required: true
+        description: Existing successful preparation run ID (blank to start a build)
+        required: false
         type: string
+      bump:
+        description: Version to prepare when starting a build
+        type: choice
+        default: patch
+        options: [current, patch, minor, major]
       publish:
-        description: Publish the notarized package to the app repository
+        description: Publish the notarized installer to public Releases
         default: false
         type: boolean
 
@@ -24,8 +29,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  prepare:
+    name: Prepare the app build
     if: github.repository == 'sichengchen/macos-release' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    environment: macOS Release
+    outputs:
+      owner: ${{ steps.app.outputs.owner }}
+      repository: ${{ steps.app.outputs.repository }}
+      run_id: ${{ steps.build.outputs.run_id }}
+    env:
+      APP_ID: ${{ inputs.app }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Resolve app profile
+        id: app
+        run: bash scripts/resolve-app.sh
+
+      - name: Get access to start the source workflow
+        if: inputs.run_id == ''
+        id: dispatch
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ steps.app.outputs.owner }}
+          repositories: ${{ steps.app.outputs.repository }}
+          permission-actions: write
+
+      - name: Start a build or reuse an existing run
+        id: build
+        env:
+          GH_TOKEN: ${{ steps.dispatch.outputs.token }}
+          EXISTING_RUN_ID: ${{ inputs.run_id }}
+          RELEASE_BUMP: ${{ inputs.bump }}
+        run: bash scripts/prepare-build.sh
+
+  release:
+    needs: prepare
+    permissions:
+      contents: write
     runs-on: macos-15
     timeout-minutes: 60
     environment: macOS Release
@@ -33,7 +80,7 @@ jobs:
       public_version: ${{ steps.publish.outputs.public_version }}
     env:
       APP_ID: ${{ inputs.app }}
-      SOURCE_RUN_ID: ${{ inputs.run_id }}
+      SOURCE_RUN_ID: ${{ needs.prepare.outputs.run_id }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -42,18 +89,14 @@ jobs:
       - name: Set the private working path
         run: printf 'RELEASE_WORK=%s/macos-release\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
-      - name: Resolve app profile
-        id: app
-        run: bash scripts/resolve-app.sh
-
       - name: Get read access to the build
         id: read
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
         with:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ steps.app.outputs.owner }}
-          repositories: ${{ steps.app.outputs.repository }}
+          owner: ${{ needs.prepare.outputs.owner }}
+          repositories: ${{ needs.prepare.outputs.repository }}
           permission-actions: read
           permission-contents: read
 
@@ -78,29 +121,30 @@ jobs:
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
         run: bash scripts/sign-release.sh
 
-      - name: Get write access to the app repository
+      - name: Get write access to tag the source commit
         if: inputs.publish
         id: write
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
         with:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ steps.app.outputs.owner }}
-          repositories: ${{ steps.app.outputs.repository }}
+          owner: ${{ needs.prepare.outputs.owner }}
+          repositories: ${{ needs.prepare.outputs.repository }}
           permission-contents: write
 
-      - name: Publish to the app repository
+      - name: Publish the signed installer
         if: inputs.publish
         id: publish
         env:
           GH_TOKEN: ${{ steps.write.outputs.token }}
+          PUBLISH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if ! bash scripts/publish-release.sh > "$RELEASE_WORK/publish.log" 2>&1; then
             echo "::error::Could not publish the release. Check the app's existing tags, releases, and write permissions."
             exit 1
           fi
-          echo "Published the notarized installer to the source repository."
+          echo "Published the notarized installer to public Releases."
 
   homebrew:
     name: Update the public Homebrew tap
