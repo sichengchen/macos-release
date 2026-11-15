@@ -4,7 +4,7 @@ This repository runs Developer ID signing and Apple notarization for maintainer-
 
 ## Configure once
 
-Create the `apple-release` Actions environment here. Restrict deployments to the `main` branch. If you add required reviewers, make sure someone can approve a run started by the maintainer. The workflow is manual and checks the repository and branch before running.
+Create the `macOS Release` Actions environment here. Restrict deployments to the `main` branch. If you add required reviewers, make sure someone can approve a run started by the maintainer. The workflow is manual and checks the repository and branch before running.
 
 | Environment setting | Kind | Value |
 | --- | --- | --- |

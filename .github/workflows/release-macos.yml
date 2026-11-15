@@ -24,7 +24,7 @@ jobs:
     if: github.repository == 'sichengchen/macos-release' && github.ref == 'refs/heads/main'
     runs-on: macos-15
     timeout-minutes: 60
-    environment: apple-release
+    environment: macOS Release
     outputs:
       public_version: ${{ steps.publish.outputs.public_version }}
     env:
@@ -100,7 +100,7 @@ jobs:
     if: needs.release.outputs.public_version != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: apple-release
+    environment: macOS Release
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
