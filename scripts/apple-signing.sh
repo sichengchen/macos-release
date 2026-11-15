@@ -63,10 +63,24 @@ sign_code() {
 }
 
 notarize() {
-  local input="$1" ticket_target="$2" result="$RELEASE_WORK/notary-result.json"
+  local input="$1" ticket_target="$2" kind="$3" result="$RELEASE_WORK/notary-result.json"
   xcrun notarytool submit "$input" --issuer "$APPLE_API_ISSUER" --key-id "$APPLE_API_KEY_ID" \
-    --key "$notary_key" --wait --output-format json > "$result"
-  jq -e '.status == "Accepted"' "$result" > /dev/null
-  xcrun stapler staple "$ticket_target"
-  xcrun stapler validate "$ticket_target"
+    --key "$notary_key" --wait --output-format json > "$result" ||
+    signing_error "Apple notarization did not complete for the $kind."
+  jq -e '.status == "Accepted"' "$result" > /dev/null ||
+    signing_error "Apple did not accept the $kind for notarization."
+  printf 'Apple accepted the %s for notarization.\n' "$kind" >&3
+
+  local attempt
+  for attempt in 1 2 3; do
+    if xcrun stapler staple "$ticket_target"; then
+      xcrun stapler validate "$ticket_target" ||
+        signing_error "The stapled $kind ticket could not be validated."
+      return
+    fi
+    if [[ "$attempt" != 3 ]]; then
+      sleep 8
+    fi
+  done
+  signing_error "The Apple notarization ticket could not be stapled to the $kind."
 }
