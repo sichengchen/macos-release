@@ -4,7 +4,7 @@ This repository runs Developer ID signing and Apple notarization for maintainer-
 
 ## Configure once
 
-Create the `macOS Release` Actions environment here. Restrict deployments to the `main` branch. If you add required reviewers, make sure someone can approve a run started by the maintainer. The workflow is manual and checks the repository and branch before running.
+Create the `macOS Release` Actions environment here. Restrict deployments to the `main` branch. If you add required reviewers, make sure someone can approve a run started by the maintainer. The workflow checks the repository and branch before running.
 
 | Environment setting | Kind | Value |
 | --- | --- | --- |
@@ -26,6 +26,17 @@ Install the GitHub App only on the source repos it needs to release and, for pub
 3. Leave **Publish** off to check signing and notarization. Turn it on to tag the build commit in the source repository and upload the installer as a public Release asset in this repository under `<app-id>-v<version>`. For profiles with a cask renderer, the workflow updates Homebrew from that public asset.
 
 The signer verifies the build's repository, workflow, branch, result, and commit before opening its artifact. It uses reviewed packaging inputs from this repo and keeps private files and diagnostics on the runner.
+
+### Weekly eipgam releases
+
+The signing workflow runs every Monday at 9:00 a.m. Eastern. It publishes a
+patch release and updates Homebrew when eipgam’s `main` has commits beyond
+the source tag for its latest published stable release. If the tag is
+already at `main`, the workflow skips the build and signing jobs. A first
+scheduled run with no prior release uses the source’s standard patch bump.
+
+Manual dispatch remains available with the existing app, bump, run ID,
+and publishing options.
 
 ## Add an app
 

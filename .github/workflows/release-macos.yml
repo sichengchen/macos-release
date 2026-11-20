@@ -1,6 +1,9 @@
 name: Sign and notarize macOS release
 
 on:
+  schedule:
+    - cron: '0 9 * * 1'
+      timezone: America/New_York
   workflow_dispatch:
     inputs:
       app:
@@ -24,8 +27,11 @@ on:
 permissions:
   contents: read
 
+env:
+  APP_ID: ${{ github.event_name == 'schedule' && 'eipgam' || inputs.app }}
+
 concurrency:
-  group: macos-release-${{ inputs.app }}
+  group: macos-release-${{ github.event_name == 'schedule' && 'eipgam' || inputs.app }}
   cancel-in-progress: false
 
 jobs:
@@ -39,8 +45,6 @@ jobs:
       owner: ${{ steps.app.outputs.owner }}
       repository: ${{ steps.app.outputs.repository }}
       run_id: ${{ steps.build.outputs.run_id }}
-    env:
-      APP_ID: ${{ inputs.app }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -51,7 +55,7 @@ jobs:
         run: bash scripts/resolve-app.sh
 
       - name: Get access to start the source workflow
-        if: inputs.run_id == ''
+        if: github.event_name == 'schedule' || inputs.run_id == ''
         id: dispatch
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
         with:
@@ -60,17 +64,28 @@ jobs:
           owner: ${{ steps.app.outputs.owner }}
           repositories: ${{ steps.app.outputs.repository }}
           permission-actions: write
+          permission-contents: read
+
+      - name: Check for a new eipgam commit
+        if: github.event_name == 'schedule'
+        id: weekly
+        env:
+          GH_TOKEN: ${{ steps.dispatch.outputs.token }}
+          PUBLISH_TOKEN: ${{ github.token }}
+        run: bash scripts/check-release-changes.sh
 
       - name: Start a build or reuse an existing run
+        if: github.event_name != 'schedule' || steps.weekly.outputs.changed == 'true'
         id: build
         env:
           GH_TOKEN: ${{ steps.dispatch.outputs.token }}
           EXISTING_RUN_ID: ${{ inputs.run_id }}
-          RELEASE_BUMP: ${{ inputs.bump }}
+          RELEASE_BUMP: ${{ github.event_name == 'schedule' && 'patch' || inputs.bump }}
         run: bash scripts/prepare-build.sh
 
   release:
     needs: prepare
+    if: needs.prepare.outputs.run_id != ''
     permissions:
       contents: write
     runs-on: macos-15
@@ -79,7 +94,6 @@ jobs:
     outputs:
       public_version: ${{ steps.publish.outputs.public_version }}
     env:
-      APP_ID: ${{ inputs.app }}
       SOURCE_RUN_ID: ${{ needs.prepare.outputs.run_id }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -122,7 +136,7 @@ jobs:
         run: bash scripts/sign-release.sh
 
       - name: Get write access to tag the source commit
-        if: inputs.publish
+        if: github.event_name == 'schedule' || inputs.publish
         id: write
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
         with:
@@ -133,7 +147,7 @@ jobs:
           permission-contents: write
 
       - name: Publish the signed installer
-        if: inputs.publish
+        if: github.event_name == 'schedule' || inputs.publish
         id: publish
         env:
           GH_TOKEN: ${{ steps.write.outputs.token }}
@@ -177,7 +191,6 @@ jobs:
 
       - name: Update the app cask
         env:
-          APP_ID: ${{ inputs.app }}
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.release.outputs.public_version }}
         run: bash scripts/update-cask.sh
