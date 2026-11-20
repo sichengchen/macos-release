@@ -1,0 +1,7 @@
+{
+  "repository": "sichengchen/eipgam",
+  "name": "eipgam",
+  "build_workflow": ".github/workflows/cut-release-macos.yml",
+  "build_branch": "main",
+  "asset": "eipgam-{version}-universal.zip"
+}
